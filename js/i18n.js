@@ -59,6 +59,7 @@ const translations = {
     'login.login': 'Log in',
     'login.savedProfiles': 'Saved profiles:',
     'login.confirmDelete': 'Delete profile "{name}" and all their teams?',
+    'login.logout': 'Logout',
 
     // Damage Calculator
     'dc.attacker': 'Attacker',
@@ -194,6 +195,7 @@ const translations = {
     'login.login': 'Entrar',
     'login.savedProfiles': 'Perfis salvos:',
     'login.confirmDelete': 'Excluir perfil "{name}" e todos os seus times?',
+    'login.logout': 'Sair',
 
     // Damage Calculator
     'dc.attacker': 'Atacante',

@@ -220,20 +220,19 @@ a:hover { text-decoration: underline; }
 .trainer-badge {
   display: flex;
   align-items: center;
-  gap: var(--sp-xs);
+  gap: 6px;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
   border-radius: 20px;
-  padding: 2px 4px 2px 12px;
+  padding: 4px 14px;
   font-size: 0.85rem;
+}
+.trainer-icon {
+  font-size: 1rem;
 }
 .trainer-name {
   font-weight: 600;
   color: var(--accent);
-}
-.btn-sm {
-  padding: 3px 8px;
-  font-size: 0.8rem;
 }
 
 /* --- Team Tabs --- */
