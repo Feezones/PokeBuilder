@@ -1,0 +1,14 @@
+{
+  "name": "pokebuilder",
+  "version": "1.0.0",
+  "description": "Pokémon Team Builder, Damage Calculator & IV/EV Calculator",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0"
+  }
+}
