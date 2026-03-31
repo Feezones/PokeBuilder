@@ -161,59 +161,39 @@ a:hover { text-decoration: underline; }
 }
 .login-form {
   display: flex;
+  flex-direction: column;
   gap: var(--sp-sm);
 }
 .login-input {
-  flex: 1;
   font-size: 1rem;
   padding: 10px 14px;
+  width: 100%;
+  box-sizing: border-box;
 }
 .login-btn {
   font-size: 1rem;
   padding: 10px 20px;
   white-space: nowrap;
+  width: 100%;
 }
-.login-profiles {
-  margin-top: 24px;
-  text-align: left;
-}
-.login-profiles-label {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  margin-bottom: 8px;
-}
-.login-profiles-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-xs);
-}
-.profile-chip {
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
-  border-radius: 20px;
-  padding: 4px 14px;
+.login-error {
+  color: var(--danger, #ef4444);
   font-size: 0.85rem;
+  min-height: 1.2em;
+  margin: 0;
+}
+.login-toggle {
+  margin-top: 16px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+.login-toggle a {
+  color: var(--accent);
+  text-decoration: none;
   cursor: pointer;
-  transition: all var(--transition);
-  display: flex;
-  align-items: center;
-  gap: 6px;
 }
-.profile-chip:hover {
-  border-color: var(--accent);
-  background: var(--bg-hover);
-}
-.profile-chip .chip-remove {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 0.75rem;
-  padding: 0 2px;
-  line-height: 1;
-}
-.profile-chip .chip-remove:hover {
-  color: var(--danger);
+.login-toggle a:hover {
+  text-decoration: underline;
 }
 
 /* --- Trainer Badge --- */

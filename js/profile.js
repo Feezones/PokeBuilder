@@ -1,35 +1,30 @@
 // ============================================
 // PokéBuilder — Profile & Multi-Team Manager
 // ============================================
-// Uses localStorage. Structure:
-//   pokebuilder-profiles       → ["ash", "misty", ...]
-//   pokebuilder-current        → "ash"
-//   pokebuilder-teams-ash      → [{ name: "Team 1", slots: [...] }, ...]
-//   pokebuilder-active-team-ash → 0
+// Uses Firebase Auth (email/password) + Firestore only.
+// Firestore structure:
+//   users/{uid} → { displayName, teams: [...], activeTeamIndex: 0 }
 
 import { createEmptySlot } from './utils.js';
 import { t } from './i18n.js';
+import { db, auth } from './firebase.js';
+import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+  deleteUser
+} from 'firebase/auth';
 
-const PROFILES_KEY = 'pokebuilder-profiles';
-const CURRENT_KEY = 'pokebuilder-current';
-
-let currentProfile = null;
+let currentUser = null; // Firebase Auth user object
+let displayName = '';
 let teams = [];
 let activeTeamIndex = 0;
 let onTeamChanged = null; // callback
 
-function teamsKey(profile) { return `pokebuilder-teams-${profile}`; }
-function activeTeamKey(profile) { return `pokebuilder-active-team-${profile}`; }
-
-// --- Profile helpers ---
-function getProfiles() {
-  try {
-    return JSON.parse(localStorage.getItem(PROFILES_KEY)) || [];
-  } catch { return []; }
-}
-
-function saveProfiles(list) {
-  localStorage.setItem(PROFILES_KEY, JSON.stringify(list));
+function userDocRef() {
+  return doc(db, 'users', currentUser.uid);
 }
 
 function createEmptyTeam(name) {
@@ -44,7 +39,7 @@ function createEmptyTeam(name) {
 
 // --- Public API ---
 
-export function getCurrentProfile() { return currentProfile; }
+export function getCurrentProfile() { return displayName; }
 export function getActiveTeam() { return teams[activeTeamIndex]; }
 export function getActiveTeamSlots() { return teams[activeTeamIndex]?.slots || []; }
 export function getActiveTeamIndex() { return activeTeamIndex; }
@@ -52,79 +47,80 @@ export function getTeams() { return teams; }
 
 export function setOnTeamChanged(cb) { onTeamChanged = cb; }
 
-export function saveTeams() {
-  if (!currentProfile) return;
+export async function saveTeams() {
+  if (!currentUser) return;
   try {
-    localStorage.setItem(teamsKey(currentProfile), JSON.stringify(teams));
-    localStorage.setItem(activeTeamKey(currentProfile), String(activeTeamIndex));
-  } catch { /* ignore */ }
+    await setDoc(userDocRef(), {
+      displayName,
+      teams: JSON.parse(JSON.stringify(teams)),
+      activeTeamIndex
+    }, { merge: true });
+  } catch (err) {
+    console.error('Failed to save teams to Firestore:', err);
+  }
 }
 
-export function login(nick) {
-  const name = nick.trim();
-  if (!name) return false;
+// --- Auth ---
 
-  currentProfile = name.toLowerCase();
-
-  // Add to profiles list if new
-  const profiles = getProfiles();
-  if (!profiles.includes(currentProfile)) {
-    profiles.push(currentProfile);
-    saveProfiles(profiles);
-  }
-
-  localStorage.setItem(CURRENT_KEY, currentProfile);
-
-  // Load teams
-  try {
-    const saved = localStorage.getItem(teamsKey(currentProfile));
-    teams = saved ? JSON.parse(saved) : [];
-  } catch { teams = []; }
-
-  // Migrate: if profile has no teams, check for legacy single-team data
-  if (teams.length === 0) {
-    const legacy = localStorage.getItem('pokebuilder-team');
-    if (legacy) {
-      try {
-        const legacySlots = JSON.parse(legacy);
-        if (Array.isArray(legacySlots) && legacySlots.length === 6) {
-          teams.push({ name: 'Team 1', slots: legacySlots.map(s => ({ ...createEmptySlot(), ...s })) });
-        }
-      } catch { /* ignore */ }
-    }
-  }
-
-  if (teams.length === 0) {
-    teams.push(createEmptyTeam('Team 1'));
-  }
-
-  // Load active team index
-  const savedIdx = parseInt(localStorage.getItem(activeTeamKey(currentProfile)));
-  activeTeamIndex = (savedIdx >= 0 && savedIdx < teams.length) ? savedIdx : 0;
-
-  saveTeams();
+export async function register(email, password, name) {
+  const cred = await createUserWithEmailAndPassword(auth, email, password);
+  currentUser = cred.user;
+  displayName = name.trim() || email.split('@')[0];
+  teams = [createEmptyTeam('Team 1')];
+  activeTeamIndex = 0;
+  await saveTeams();
   return true;
 }
 
-export function logout() {
-  currentProfile = null;
+export async function login(email, password) {
+  const cred = await signInWithEmailAndPassword(auth, email, password);
+  currentUser = cred.user;
+  await loadUserData();
+  return true;
+}
+
+async function loadUserData() {
+  if (!currentUser) return;
+  try {
+    const snap = await getDoc(userDocRef());
+    if (snap.exists()) {
+      const data = snap.data();
+      displayName = data.displayName || currentUser.email.split('@')[0];
+      teams = Array.isArray(data.teams) ? data.teams : [];
+      activeTeamIndex = (typeof data.activeTeamIndex === 'number' && data.activeTeamIndex >= 0 && data.activeTeamIndex < teams.length)
+        ? data.activeTeamIndex : 0;
+    }
+  } catch (err) {
+    console.error('Failed to load user data:', err);
+  }
+  if (teams.length === 0) {
+    teams = [createEmptyTeam('Team 1')];
+    activeTeamIndex = 0;
+    await saveTeams();
+  }
+}
+
+export async function logout() {
+  await signOut(auth);
+  currentUser = null;
+  displayName = '';
   teams = [];
   activeTeamIndex = 0;
-  localStorage.removeItem(CURRENT_KEY);
 }
 
-export function getSavedProfile() {
-  return localStorage.getItem(CURRENT_KEY) || null;
-}
-
-export function deleteProfile(name) {
-  const profiles = getProfiles().filter(p => p !== name);
-  saveProfiles(profiles);
-  localStorage.removeItem(teamsKey(name));
-  localStorage.removeItem(activeTeamKey(name));
-  if (currentProfile === name) {
-    logout();
+export async function deleteAccount() {
+  if (!currentUser) return;
+  try {
+    await deleteDoc(userDocRef());
+    await deleteUser(currentUser);
+  } catch (err) {
+    console.error('Failed to delete account:', err);
+    throw err;
   }
+  currentUser = null;
+  displayName = '';
+  teams = [];
+  activeTeamIndex = 0;
 }
 
 // --- Team management ---
@@ -160,81 +156,128 @@ export function renameTeam(index, newName) {
 
 // --- Login UI ---
 
+function showApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app-header').style.display = '';
+  document.getElementById('app-nav').style.display = '';
+  document.getElementById('app-main').style.display = '';
+  document.getElementById('trainer-name').textContent = displayName;
+  if (onTeamChanged) onTeamChanged();
+}
+
+function showLogin() {
+  document.getElementById('app-header').style.display = 'none';
+  document.getElementById('app-nav').style.display = 'none';
+  document.getElementById('app-main').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
 export function initLoginScreen() {
   const screen = document.getElementById('login-screen');
-  const input = document.getElementById('login-nick');
-  const btn = document.getElementById('login-btn');
-  const profilesList = document.getElementById('login-profiles-list');
-  const profilesContainer = document.getElementById('login-profiles');
+  const emailInput = document.getElementById('login-email');
+  const passwordInput = document.getElementById('login-password');
+  const nameInput = document.getElementById('login-nick');
+  const loginBtn = document.getElementById('login-btn');
+  const registerBtn = document.getElementById('register-btn');
+  const toggleLink = document.getElementById('login-toggle');
+  const errorEl = document.getElementById('login-error');
+  const nameGroup = document.getElementById('login-name-group');
 
-  function renderProfiles() {
-    const profiles = getProfiles();
-    if (profiles.length === 0) {
-      profilesContainer.style.display = 'none';
-      return;
-    }
-    profilesContainer.style.display = 'block';
-    profilesList.innerHTML = profiles.map(p =>
-      `<div class="profile-chip" data-profile="${p}">
-        <span>${p}</span>
-        <button class="chip-remove" data-delete="${p}" title="Delete">&times;</button>
-      </div>`
-    ).join('');
+  let isRegisterMode = false;
 
-    profilesList.querySelectorAll('.profile-chip').forEach(chip => {
-      chip.addEventListener('click', (e) => {
-        if (e.target.classList.contains('chip-remove')) return;
-        const profile = chip.dataset.profile;
-        input.value = profile;
-        doLogin(profile);
-      });
-    });
-
-    profilesList.querySelectorAll('.chip-remove').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const name = btn.dataset.delete;
-        if (confirm(t('login.confirmDelete').replace('{name}', name))) {
-          deleteProfile(name);
-          renderProfiles();
-        }
-      });
-    });
+  function setMode(registerMode) {
+    isRegisterMode = registerMode;
+    nameGroup.style.display = registerMode ? '' : 'none';
+    loginBtn.style.display = registerMode ? 'none' : '';
+    registerBtn.style.display = registerMode ? '' : 'none';
+    toggleLink.innerHTML = registerMode
+      ? `${t('login.hasAccount')} <a href="#">${t('login.loginLink')}</a>`
+      : `${t('login.noAccount')} <a href="#">${t('login.registerLink')}</a>`;
+    errorEl.textContent = '';
   }
 
-  function doLogin(nick) {
-    if (login(nick)) {
-      screen.style.display = 'none';
-      document.getElementById('app-header').style.display = '';
-      document.getElementById('app-nav').style.display = '';
-      document.getElementById('app-main').style.display = '';
-      document.getElementById('trainer-name').textContent = currentProfile;
-      if (onTeamChanged) onTeamChanged();
+  function showError(msg) {
+    errorEl.textContent = msg;
+  }
+
+  async function doLogin() {
+    errorEl.textContent = '';
+    const email = emailInput.value.trim();
+    const pass = passwordInput.value;
+    if (!email || !pass) return showError(t('login.fillFields'));
+    try {
+      await login(email, pass);
+      showApp();
+    } catch (err) {
+      showError(firebaseErrorMsg(err.code));
     }
   }
 
-  btn.addEventListener('click', () => doLogin(input.value));
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') doLogin(input.value);
+  async function doRegister() {
+    errorEl.textContent = '';
+    const email = emailInput.value.trim();
+    const pass = passwordInput.value;
+    const name = nameInput.value.trim();
+    if (!email || !pass) return showError(t('login.fillFields'));
+    if (pass.length < 6) return showError(t('login.weakPassword'));
+    try {
+      await register(email, pass, name);
+      showApp();
+    } catch (err) {
+      showError(firebaseErrorMsg(err.code));
+    }
+  }
+
+  loginBtn.addEventListener('click', doLogin);
+  registerBtn.addEventListener('click', doRegister);
+
+  passwordInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      isRegisterMode ? doRegister() : doLogin();
+    }
+  });
+
+  nameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && isRegisterMode) doRegister();
+  });
+
+  toggleLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    setMode(!isRegisterMode);
   });
 
   // Logout
-  document.getElementById('btn-logout').addEventListener('click', () => {
-    logout();
-    document.getElementById('app-header').style.display = 'none';
-    document.getElementById('app-nav').style.display = 'none';
-    document.getElementById('app-main').style.display = 'none';
-    screen.style.display = 'flex';
-    input.value = '';
-    renderProfiles();
+  document.getElementById('btn-logout').addEventListener('click', async () => {
+    await logout();
+    showLogin();
+    emailInput.value = '';
+    passwordInput.value = '';
+    nameInput.value = '';
+    setMode(false);
   });
 
-  renderProfiles();
+  setMode(false);
 
-  // Auto-login if saved
-  const saved = getSavedProfile();
-  if (saved) {
-    doLogin(saved);
+  // Auto-login if session persisted by Firebase
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      currentUser = user;
+      await loadUserData();
+      showApp();
+    }
+  });
+}
+
+function firebaseErrorMsg(code) {
+  switch (code) {
+    case 'auth/email-already-in-use': return t('login.errEmailInUse');
+    case 'auth/invalid-email': return t('login.errInvalidEmail');
+    case 'auth/user-not-found': return t('login.errUserNotFound');
+    case 'auth/wrong-password': return t('login.errWrongPassword');
+    case 'auth/invalid-credential': return t('login.errInvalidCredential');
+    case 'auth/too-many-requests': return t('login.errTooMany');
+    case 'auth/weak-password': return t('login.weakPassword');
+    default: return t('login.errGeneric');
   }
 }
 

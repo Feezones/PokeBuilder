@@ -13,15 +13,20 @@
     <div class="login-card">
       <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/poke-ball.png" alt="PokéBall" width="64" height="64" style="image-rendering:pixelated">
       <h2>PokéBuilder</h2>
-      <p class="login-subtitle" data-i18n="login.subtitle">Enter your trainer name to access your teams</p>
+      <p class="login-subtitle" data-i18n="login.subtitle">Sign in to access your teams</p>
       <div class="login-form">
-        <input type="text" id="login-nick" class="search-input login-input" placeholder="Trainer name..." data-i18n-placeholder="login.placeholder" maxlength="20" autocomplete="off">
+        <input type="email" id="login-email" class="search-input login-input" placeholder="Email" data-i18n-placeholder="login.emailPlaceholder" autocomplete="email">
+        <input type="password" id="login-password" class="search-input login-input" placeholder="Password" data-i18n-placeholder="login.passwordPlaceholder" autocomplete="current-password">
+        <div id="login-name-group" style="display:none;">
+          <input type="text" id="login-nick" class="search-input login-input" placeholder="Trainer name (optional)" data-i18n-placeholder="login.namePlaceholder" maxlength="20" autocomplete="off">
+        </div>
+        <p class="login-error" id="login-error"></p>
         <button id="login-btn" class="btn btn-primary login-btn" data-i18n="login.login">Log in</button>
+        <button id="register-btn" class="btn btn-primary login-btn" style="display:none;" data-i18n="login.register">Create account</button>
       </div>
-      <div class="login-profiles" id="login-profiles">
-        <p class="login-profiles-label" data-i18n="login.savedProfiles">Saved profiles:</p>
-        <div class="login-profiles-list" id="login-profiles-list"></div>
-      </div>
+      <p class="login-toggle" id="login-toggle">
+        <span data-i18n="login.noAccount">Don't have an account?</span> <a href="#" data-i18n="login.registerLink">Sign up</a>
+      </p>
     </div>
   </div>
 
