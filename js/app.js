@@ -9,6 +9,7 @@ import { initDamageCalc, refreshDamageCalc } from './damage-calc.js';
 import { initIVEVCalc, refreshIVEVCalc } from './iv-ev-calc.js';
 import { initInfoPopup } from './info-popup.js';
 import { initLoginScreen, getCurrentProfile } from './profile.js';
+import { initBattleUI, refreshBattleUI } from './battle-ui.js';
 
 // --- Theme ---
 function initTheme() {
@@ -46,6 +47,7 @@ function refreshAllViews() {
   refreshTeamBuilder();
   refreshDamageCalc();
   refreshIVEVCalc();
+  refreshBattleUI();
 }
 
 // --- Navigation ---
@@ -93,6 +95,8 @@ async function init() {
       initDamageCalc(),
       initIVEVCalc()
     ]);
+
+    initBattleUI();
 
     // Apply language after everything is set up
     initLanguage();
